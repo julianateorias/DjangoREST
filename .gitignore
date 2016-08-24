@@ -1,0 +1,15 @@
+*.db
+*.pyc
+*~
+.*
+myvenv
+venv3
+myvenv_desatualizado_python27
+__pycache__
+db.sqlite3
+.DS_Store
+
+# Accept these files in the repository
+!.gitignore
+!.travis.yml
+

@@ -1,0 +1,262 @@
+
+Tutorial 1: Serialização
+
+Criar a virtualenv para isolar os pacotes configurados para esse projeto, separando-os dos outros projetos.
+
+$ virtualenv env (--unzip-setuptools -p python3.4)
+$ source env/bin/activate
+
+$ pip install django   (==1.8.3 tutorial)
+$ pip install djangorestframework
+$ pip install pygments  # usada para realçar o código
+$ deactivate
+
+$ django-admin.py startproject tutorial .
+
+Criar a app que será usada para criar uma simples Web API.
+
+$ python manage.py startapp snippets
+
+Em tutorial/settings.py, instalar a app snippets e o rest_framework:
+
+INSTALLED_APPS = (
+    ...
+    'rest_framework',
+    'snippets',
+)
+
+
+Criando um modelo:
+Code Snippets: algo como "retalhos de código", são pedaços pde código pré-fabricados e parametrizáveis que podemos
+inserir em nossa aplicação.
+Para o fim deste tutorial, vamos começar criando um simples modelo Snippet para armazenarmos code snippets.
+
+Editar o arquivo snippets/models.py
+
+Depois de criar o modelo Snippet, criar uma migração inicial para o nosso modelo e sincronizar a base de dados pela
+primeira vez.
+
+$ source env/bin/activate
+$ python manage.py makemigrations snippets
+$ python manage.py migrate
+
+Obs: pode dar um erro de pattern, corrigir em tutorial/urls.py (retirar o pattern, nao se usa mais)
+
+
+Criando uma classe serializer
+Nossa Web API precisa fornecer um jeito de serializar e deserializar instâncias snippet em representações como json.
+Fazemos isso declarando serializers que são muito similares ao Django Forms.
+
+Criar um arquivo no diretório snippets "serializers.py".
+
+Agora temos as classes
+snippets.models - classe Snippet
+snippets.serializers - classe SnippetSerializer
+
+
+Familiarizar-se um pouco usando a classe Serializer, usando o Django shell.
+
+$ python manage.py shell
+
+>>> from snippets.models import Snippet
+>>> from snippets.serializers import SnippetSerializer
+>>> from rest_framework.renderers import JSONRenderer
+>>> from rest_framework.parsers import JSONParser
+
+>>> snippet = Snippet(code='foo = "bar"\n')
+>>> snippet.save()
+
+>>> snippet = Snippet(code='print "hello, world"\n')
+>>> snippet.save()
+
+>>> serializer = SnippetSerializer(snippet)
+>>> serializer.data
+{'style': 'friendly', 'code': u'print "hello, world"\n', 'language': 'python', 'title': u'', 'linenos': False, 'pk': 2}
+
+# Ate este ponto, traduzimos a instance model para tipos de dados nativos do Python. Renderizar os dados para json.
+
+>>> content = JSONRenderer().render(serializer.data)
+>>> content
+'{"pk":2,"title":"","code":"print \\"hello, world\\"\\n","linenos":false,"language":"python","style":"friendly"}'
+
+
+# Deserialização é similar. Fazemos o parse de uma stream para dados nativos do Python.
+
+>>> stream = BytesIO(content)
+>>> data = JSONParser().parse(stream)
+{u'style': u'friendly', u'code': u'print "hello, world"\n', u'language': u'python', u'title': u'', u'linenos': False, u'pk': 2}
+
+# e recuperamos esses dados nativos para uma instancia de objeto totalmente populada
+
+>>> serializer = SnippetSerializer(data=data)
+>>> serializer.is_valid()
+True
+>>> serializer.validated_data
+OrderedDict([(u'title', u''), (u'code', u'print "hello, world"'), (u'linenos', False), (u'language', 'python'), (u'style', 'friendly')])
+>>> serializer.save()
+<Snippet: Snippet object>
+
+
+# Podemos serializar querysets ao inves de instances model, simplesmente add a flag many=True nos argumentos do serializer
+# Fazemos um select no modelo Snippet, para pegar todos.
+
+>>> serializer = SnippetSerializer(Snippet.objects.all(), many=True)
+>>> serializer.data
+[OrderedDict([('pk', 1), ('title', u''), ('code', u'foo = "bar"\n'), ('linenos', False), ('language', 'python'),
+ ('style', 'friendly')]), OrderedDict([('pk', 2), ('title', u''), ('code', u'print "hello, world"\n'),
+ ('linenos', False), ('language', 'python'), ('style', 'friendly')]), OrderedDict([('pk', 3), ('title', u''),
+  ('code', u'print "hello, world"'), ('linenos', False), ('language', 'python'), ('style', 'friendly')])]
+
+
+Usando Model Serializers
+
+A classe SnippetSerializer esta repetindo muita informação da classe Snippet(model). Deixar o codigo mais resumido.
+Da mesma forma que o Django fornece a classe Form e a ModelForm, o REST inclui classes Serializer e ModelSerializar.
+
+Refatorar o serializer usando a classe ModelSerializer.
+
+Editar snippets/serializers.py
+
+Uma propriedade legal que tem no serializers é que você pode inspecionar todos os campos numa instância serializer,
+imprimindo sua representação.
+
+$ python manage.py shell
+
+>>> from snippets.serializers import SnippetSerializer
+>>> serializer = SnippetSerializer()
+>>> print(repr(serializer))
+
+SnippetSerializer():
+    id = IntegerField(label='ID', read_only=True)
+    title = CharField(allow_blank=True, max_length=100, required=False)
+    code = CharField(style={'base_template': 'textarea.html'})
+    linenos = BooleanField(required=False)
+    language = ChoiceField(choices=[('abap', 'ABAP'), ('abnf', 'ABNF')...])
+    style = ChoiceField(choices=[('algol', 'algol'), ('algol_nu', 'algol_nu')...])
+
+Após a refatoração, herdando de ModelSerializer, a classe SnippetSerializer continua com a mesma implementação,
+lembrando que a classe ModelSerializer não faz nenhuma mágica particular, sendo apenas um shortcut para criação
+de classes serializer:
+  - Um determinate automático de set de fields
+  - Simpes implementações default para os metodos create() e update().
+
+É igual ao Form, criamos a classe herdando de serializers.ModelSerializer (no Form, seria forms.ModelForm),
+e na classe Meta dizemos qual modelo deve ser usado para criar a serialização. Em fields, dizemos quais campos
+devem entrar na nossa serialização.
+
+
+
+Escrevendo views regulares usando nosso Serializer:
+Como escrever algumas views API usando a classe Serializer, sem usar nenhuma outra caracteristica do Rest, apenas
+escrevendo views como as views regulares do Django.
+
+Editar snippet.views
+
+A raiz da API vai ser uma visão que suporta a listagem de todos os snippets existentes ou a criação de um novo
+snippet.
+Também precisamos de uma view que corresponde para um snippet individual, e pode ser uado para recuperar, atualizar ou
+deletar o snippet.
+
+Depois de criar as duas views, precisamos conectá-las.
+Lembrar das expressões regulares (Regex):
+
+^ para inicio do texto
+$ para o final do texto
+\d para um dígito
++ para indicar que o item anterior deve ser repetido pelo menos uma vez
+() para capturar parte do padrão
+
+Criar snippets/urls.py
+
+r'^snippets/$'              - a url deve ter a palavra snippets/
+r'^snippets/?P<pk>[0-9]+/$'  - significa que o django vai transferir toodo parametro para a view, com a variavel pk,
+                            que também só aceita números.
+
+Não esquecer de incluir a url da app snippets no projeto tutorial
+Editar tutorial/urls.py
+
+É importante notar que há casos de beirada que não estamos lidando adequadamente no momento. Se enviarmos um json mal
+formatado, ou se um request é feito com um metodo que a view não manipula, devolvemos um response com erro de servidor
+500. Ainda assim, deixar assim por enquanto.
+
+
+Testar a web API, com a venv ativada:
+
+$ python manage.py runserver
+
+Em outro terminal, com a venv ativada:
+
+$ pip install httpie
+(testar a API usando curl ou httpie. Httpie é um amigo do usuario http cliente que é escrito em python)
+
+$ http http://127.0.0.1:8000/snippets/
+
+retorna:
+HTTP/1.0 200 OK
+Content-Type: application/json
+Date: Mon, 22 Aug 2016 20:30:51 GMT
+Server: WSGIServer/0.2 CPython/3.4.3+
+X-Frame-Options: SAMEORIGIN
+
+[
+    {
+        "code": "foo = \"bar\"\n",
+        "id": 1,
+        "language": "python",
+        "linenos": false,
+        "style": "friendly",
+        "title": ""
+    },
+    {
+        "code": "print \"hello, world\"\n",
+        "id": 2,
+        "language": "python",
+        "linenos": false,
+        "style": "friendly",
+        "title": ""
+    },
+    {
+        "code": "print \"hello, world\"",
+        "id": 3,
+        "language": "python",
+        "linenos": false,
+        "style": "friendly",
+        "title": ""
+    }
+]
+
+
+Ou passando um id:
+
+http http://127.0.0.1:8000/snippets/2/
+
+retorno:
+HTTP/1.0 200 OK
+Content-Type: application/json
+Date: Mon, 22 Aug 2016 21:41:05 GMT
+Server: WSGIServer/0.2 CPython/3.4.3+
+X-Frame-Options: SAMEORIGIN
+
+{
+    "code": "print \"hello, world\"\n",
+    "id": 2,
+    "language": "python",
+    "linenos": false,
+    "style": "friendly",
+    "title": ""
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
