@@ -1,0 +1,548 @@
+
+Field API reference
+Field (campo)
+https://docs.djangoproject.com/en/1.9/ref/models/fields/#django.db.models.Field
+
+class Field
+Field é uma classe abstrata que representa uma coluna da tabela na database.
+Um field é assim um pedaço fundamental em diferentes Django APIs, notavelmente em models e querysets.
+
+Model Fields:
+ref: https://docs.djangoproject.com/en/1.10/ref/models/fields/#field-types
+
+
+Field Types e Field Options
+
+
+
+Field Options:
+(Argumentos que são válidos em todos os Field Types)
+
+a) null
+ default é False. Se null=True, django armazena valores vazios como null na database.
+ Evitar usar em CharField e TextFiel, porque valores de string vazias vão sempre armazenar como string vazias, não
+ como nulas, e geralmente é redudante ter as duas opções: nula e vazia. A convenção do django é usar empty, não null.
+ Para ambos campos baseados em strings ou não, é necessário setar também blank=True, se desejar permitir empty values
+ em forms, já que o parâmetro null apenas afeta database storage.
+ Em BooleanField, usar NullBooleandField.
+
+b) blank
+ default é False. Se blank=True, é permitido ao field aceitar blank (em branco).
+ A diferença entre null e blank é que null é puramente relacionado a database, enquanto que blank está relacionado a
+ validação. Se um field tem blank=True, a validação do form aceita entrada de empty value para o field.
+
+c) choices
+ Uma iteração (lista ou tupla, que pode se repetir) que consiste de iteráveis de exatamente dois itens [(A,B), (A,B)...]
+ para escolher para este field. Quando usado, o default form widget vai ser um select box com essas opções ao
+ invés do texto padrão do field.
+ O primeiro elemento em cada tupla é o valor a ser setado no modelo, e o segundo elemento é um nome legível ao usuário.
+ Geralmente é melhor definir choises dentro de uma classe de modelo, e definir um nome adequado pra cada valor:
+
+ from django.db import models
+
+ class Student(models.Model):
+    FRESHMAN = 'FR'
+    SOPHOMORE = 'SO'
+    JUNIOR = 'JR'
+    SENIOR = 'SR'
+    YEAR_IN_SCHOOL_CHOICES = (
+        (FRESHMAN, 'Freshman'),
+        (SOPHOMORE, 'Sophomore'),
+        (JUNIOR, 'Junior'),
+        (SENIOR, 'Senior'),
+    )
+    year_in_school = models.CharField(
+        max_length=2,
+        choices=YEAR_IN_SCHOOL_CHOICES,
+        default=FRESHMAN,
+    )
+
+    def is_upperclass(self):
+        return self.year_in_school in (self.JUNIOR, self.SENIOR)
+
+ Embora seja possível definir choice list fora de uma classe model e então fazer a referência.
+
+ Também é possível coletar choises disponíveis em grupos de nomes que podem ser usados para fins de organização:
+
+ MEDIA_CHOICES = (
+    ('Audio', (
+            ('vinyl', 'Vinyl'),
+            ('cd', 'CD'),
+        )
+    ),
+    ('Video', (
+            ('vhs', 'VHS Tape'),
+            ('dvd', 'DVD'),
+        )
+    ),
+    ('unknown', 'Unknown'),
+ )
+
+
+d) db_column
+O nome de uma coluna na database usada para este field. Se não é informado, o django utiliza o nome do field.
+Se o nome da coluna for uma palavra reservada do SQL, ou se conter caracteres que nao sao permitidos em variáveis
+do python (hifen), esta ok. Django cita nomes de colunas e tabelas por tras dos bastidores.
+
+
+e) db_index
+Se True, a database ira criar um indice para este field.
+
+
+f) db_tablespace
+ O nome da database tablespace para usar para este field index, se este field for indexado. O default é o
+ a definição de projeto DEFAULT_INDEX_TABLESPACE, se definido, ou o db_tablespace do modelo, se algum. Se o
+ backend não suportar tablespaces para indexes, esta opção é ignorada.
+
+
+g) default
+O valor default para o field. Pode ser um valor ou um objeto callable. Se callable, será chamado
+cada vez que um novo objeto for criado.
+
+Default não pode ser um objeto mutável (model instance, list, set...), como uma referência para a mesma instância
+do objeto seria usado como o valor padrão em todas as novas instâncias do modelo. Ao invés, envolver o padrão desejado
+em uma chamada.
+
+Por exemplo, se você quer especificar um dict default para JSONField, use uma função:
+
+    def contact_default():
+        return {"email": "to1@example.com"}
+
+    contact_info = JSONField("ContactInfo", default=contact_default)
+
+
+lambdas não podem ser usadas para field options, como o default, porque elas não podem ser serializadas pelas migrações.
+Para fields como ForeignKey, que mapeia para model instances, defaults deveria ser um valor do field que ele referencia,
+ao invés de model instances (pk ao menos to_field é definido).
+
+O valor default é usado quando novo model instances são criados e o valor não é fornecido pelo field. Quando o valor
+é uma primary key, o default é também usado quando o field é definido para None.
+
+
+h) editable
+default True. Se False, o field não será exibido no admin ou em qualquer ModelForm. Também é ignorado durante model
+validation.
+
+
+i) error_messages
+Argumento que permite sobrepor a mensagem padrão que o field iria carregar. Passe em um dicionario com chaves
+correspondentes a mensagem de erro que se quer sobrepor.
+
+Chaves de mensagem de erro incluem null, blank, invalid, invalid_choise, unique e unique_for_date. Outras mensagens de
+erros são especificar para cada field em Field Types.
+
+
+j) help_text
+Texto extra de ajuda a ser exibido com o form widget. È útil para documentação mesmo que seu field não seja usado num form.
+
+Repare que ese valor não é um HTML-escaped (algo que se solta) em forms gerados automaticamente. Isso permite incluir
+HTML in help_test se desejar:
+
+    help_text="Please use the following format: <em>YYYY-MM-DD</em>."
+
+Alternativamente, pode-se usar texto simples e django.utils.html.escape() para soltar qualquer caracter especial HTML.
+Certifique-se você soltou qualquer texto de ajuda que pode vir de usuários não confiáveis, para evitar um ataque de
+scripting cross-site.
+
+
+k) primary_key
+ Se True, o field será chave primária para o modelo.
+ Se nao especificar primary_key=True para qualquer field no modelo, Django automaticamente adiciona um AutoField para
+ chave primária, você não precisa setar primary_key = True a não ser que se queria sobreescrever a chave primária padrão.
+
+ primary_key=True implica null=False e unique=true. Apenas uma chave primária é permitida por objeto.
+
+ Field apenas ready-only, se mudar o valor da chave primária num objeto existente e salvá-lo, um novo objeto será criado
+ ao lado do antigo.
+
+
+l) unique
+se True, o field deve ser único ao longo da tabela.
+Isso é reforçado no nível da database e pelo model validation. Se tentar salver um model com um valor duplicado num
+field que só aceita unique, um django.db.IntegrityError será disparado pelo metodo save() do model.
+
+Essa opção é válida em todos os field types, exceto ManyToManyField, OneToOneField e FileField.
+
+Repare que quando unique é True, não é preciso especificar db_index, porque unique implica na crição de um index.
+
+
+m) unique_for_date
+ Defina essa opção para o nome de um DateField ou DateTimeField para que este field seja único para o valor do field de
+ data.
+ Por exemplo, se você tem um field title que tem unique_for_date="pub_date", então Django não deveria permitir entrada
+ de duas gravações com o mesmo title e pub_date.
+
+ Repare que se você definir isso para apontar para um DateTimeField, apenas a parte da data do field vai ser considerada.
+ Além disso, quando USE_TZ é True, a verificação será efetuada no current time zone no momento que o objeto é salvo.
+ https://docs.djangoproject.com/en/1.9/topics/i18n/timezones/#default-current-time-zone
+
+ Isso é reforçado pelo Model.validate_unique() durante a validação do modelo, mas não no nível da database.
+ Se qualquer constraint (restrição) envolver fields que não fazem parte de um ModelForm (por exemplo, se um dos fields
+ esta listado em exclude ou ter editable=False), Model.validate_unique() vai pular a validação para esta restrição
+ particular.
+
+
+n) unique_for_month
+ Igual, unique_for_date, mas requer o field para ser único com respeito ao mês.
+
+
+o) unique_for_year
+ Igual aos anteriores.
+
+
+p) verbose_name
+ Um nome legível para o field. Se não é informado, django automaticamente cria usando o nome do atributo do field,
+ convertendo underscores em espaços.
+
+ exemplo de como usar:
+    first_name = models.CharField("person's first name", max_length=30)
+ https://docs.djangoproject.com/en/1.9/topics/db/models/#verbose-field-names
+
+
+q) validators
+ Uma lista de validadores para rodar para um field.
+ Ver na documentação:
+ https://docs.djangoproject.com/en/1.9/ref/validators/
+
+
+
+
+Field Types
+(classes)
+
+Source code: https://docs.djangoproject.com/en/1.9/_modules/django/db/models/fields/
+
+a) AutoField
+class AutoField(**options)
+IntergerField que automaticamente incrementa.
+Geralmente não é necessário usar isso porque um primary key fiel automaticamente é add no modelo, se você não especificar
+de outra forma.
+
+
+b) BigIntegerField
+class BigIntegerField(**options)
+64 bit integer, parecido com um IntegerField exceto que é garantido que caiba numeros de -9223372036854775808
+a 9223372036854775807.
+O default form widget para este field é TextInput.
+
+
+c) BinaryField
+class BinaryField(**options)
+Um field para armazenar dados binários bruto, com limitações, que só suporta bytes.
+
+
+d) BooleanField
+class BooleanField(**options)
+Um true/false field
+O default form widget para este field é CheckboxInput.
+Se precisar aceitar valores nulos, usar NullBooleanField, ao invés de usar esse.
+O valor default de BooleanField é None quando Field.default não é definido.
+
+
+e) CharField
+class CharField(max_length=None, **options)
+Um string field, para small- to large-sized strings.
+Para grandes quantidades de texto, usar TextField.
+O default form widget para este field é TextInput.
+
+Ele tem um argumento extra obrigatório:
+    CharField.max_length
+    O tamanho máximo (em caracteres) para o field, que é aplicado no nível de database e na validação do Django.
+
+Para Mysql, olhar alguns problemas
+https://docs.djangoproject.com/en/1.9/ref/databases/#mysql-collation
+
+
+f) CommaSeparatedIntegerField
+class CommaSeparatedIntegerField(max_length=None, **options)
+Um field de integers separados por vírgulas.
+Argumento max_length é necessário e notas sobre portabilidade de banco de dados nele referidos deverão ser atendidas.
+
+
+g) DateField
+class DateField(auto_now=False, auto_now_add=False, **options)
+Data representada em Python pelo instância datetime.date.
+
+Tem alguns argumentos opcionais extras:
+
+DateField.auto_now
+Automaticamente define o field para now cada vez que o objeto é salvo. Útil para "last-modified" timestamps.
+Reparar que a data corrente é sempre usada, não é apenas um valor padrão para sobrescrever.
+Só funciona quando chama o Model.save()
+
+DateField.auto_now_add
+Define o field para now quando o objeto é criado pela primeira vez. Mesmo se você definir um valor para ese field,
+quando criado o objeto o valor será ignorado.
+Para modificar esse field, ao invés de usar auto_now_add=True, usar:
+    For DateField: default=date.today - from datetime.date.today()
+    For DateTimeField: default=timezone.now - from django.utils.timezone.now()
+
+O default form widget paa este field é TextInput. O admin add Javascript calendar, e um shortcut para "Today".
+Inclui uma adicional mensagem de erro "invalid_date" key.
+
+Como implementado atualmente, setar auto_now ou auto_now_add para True fará com que o campo tenha editable=False e
+blank=true.
+
+Sempre irão usar a data no default "timezone". Se precisar de algo diferente, considere usar seu próprio callabe ou
+sobrescrever save() ao invés de usar aut_now ou auto_now_add, ou usar um DateTimeField ao invés de DateField,
+e decidir como lidar com a conversão de data e hora a data em tempo de exibição.
+
+
+h) DateTimeField
+class DateTimeField(auto_now=False, auto_now_add=False, **options)
+Data e hora representado em Python pela instância datetime.datetime.
+O default form widget é um single TextInput. O admin usa dois TextInput widgets separados com Javascript shortcuts.
+Mesmos argumentos do DateField.
+
+
+j) DecimalField
+class DecimalField(max_digits=None, decimal_places=None, **options)
+Um número decimal de precisão fixa, representado em Python pela instância Decimal.
+
+Tem dois argumentos obrigatórios extras:
+
+DecimalField.max_digits
+Número máximo de digitos permitidos em um número, que deve ser maior que ou igual a decimal_places.
+
+DecimalField.decimal_places
+O número de casas decimais para armazenar com o número.
+
+Exemplo
+Store números até 999 com uma resolução de 2 casas decimais:
+models.DecimalField(..., max_digits=5, decimal_places=2)
+
+E store números até aproximadamente um bilhão com uma resolução de 10 casas decimais:
+models.DecimalField(..., max_digits=19, decimal_places=10)
+
+O default form widget para este field é um NumberInput quando localize=False ou TextInput.
+
+Para ver a diferença entre float e decimal:
+https://docs.djangoproject.com/en/1.9/ref/models/fields/#floatfield-vs-decimalfield
+
+
+k) DurationField
+class DurationField(**options)
+Field para armazenar periodos de tempo - modelado em Python pelo timedelta.
+No PostgreSQL, o tipo de dado usado é um interval, e no Oracle é um INTERVAL DAY(9) TO SECOND(6).
+Outra forma é usar um bigint de microsegundos.
+Obs: aritmética com DurationField funciona em muitos casos, porém em todas as databases diferentes do PostgreSQL,
+comparar o valor de um DurationField com aritmético em instância DateTimeField não funciona como esperado.
+
+
+l) EmailField
+class EmailField(max_length=254, **options)
+Um CharField que verifica se o valor é valido como endereço de email.
+Utiliza EmailValidator para validar a entrada.
+https://docs.djangoproject.com/en/1.10/ref/validators/#django.core.validators.EmailValidator
+
+
+m) FileField
+class FileField(upload_to=None, max_length=100, **options)
+File-upload field.
+Obs: primary key e unique argumentos não são suportados, se usado será lançado um TypeError.
+
+Tem dois argumentos opcionais:
+
+FileField.upload_to
+ Para definir um diretório e file name para o upload, pode ser setado das duas formas. Nos dois casos, o valor
+ é passado para o método Storage.save()
+
+ Se especificar uma string value, pode conter o formato strftime(), que será substituído por date/time do
+ file upload, fazendo com que o upload não preencha o diretório informado.
+ Exemplo:
+     class MyModel(models.Model):
+        # file will be uploaded to MEDIA_ROOT/uploads
+        upload = models.FileField(upload_to='uploads/')
+        # or...
+        # file will be saved to MEDIA_ROOT/uploads/2015/01/30
+        upload = models.FileField(upload_to='uploads/%Y/%m/%d/')
+
+ Verificar se está usando o default FileSystemStorage. Também pode ser um callable, como uma função.
+ Ler a documentação completa:
+ https://docs.djangoproject.com/en/1.10/ref/models/fields/#django.db.models.FileField.upload_to
+
+
+FileField.storage
+ Um objeto storage, que manipula o armazenamento e manipulação de seus arquivos.
+ O default form widget para este field é ClearebleFileInput.
+
+ Ler a documentação completa:
+ https://docs.djangoproject.com/en/1.10/ref/models/fields/#django.db.models.FileField.storage
+
+
+class FieldFile
+ Quando acessa um FileField no modelo, você está informando uma instância de FieldFile como um proxy para acessar
+ um arquivo.
+ Possui alguns métodos usados para interagir com o arquivo.
+ File.read()
+ File.write()
+ FieldFile: name, size, url, open(mode='rb'), close(), save(name, content, save=True) e delete(save=True).
+
+ Ler a documentação completa:
+ https://docs.djangoproject.com/en/1.10/ref/models/fields/#filefield-and-fieldfile
+
+
+n) FilePathField
+class FilePathField(path=None, match=None, recursive=False, max_length=100, **options)
+Charfield cujas escolhas são limitadas a nomes de arquivos em um determinado diretório no sistema de arquivos.
+
+Tem 3 argumentos especiais, um é obrigatório:
+ FilePathField.path (obrigatório)
+ - caminho absoluto do diretório onde FilePathField deve pegar suas escolhas
+ ex: "/home/images"
+
+ FilePathField.match
+ - expressão regular usada para filtrar filenames. Regex será aplicado no filename base, não na pasta toda.
+ ex: "foo.*\.txt$" combina com um arquivo chamado foo23.txt mas não combina com bar.txt ou foo23.png.
+
+ FilePathField.recursive
+ - Default é False. Especifica se todos os subdiretórios de path devem ser incluídos.
+
+Outros argumentos opcionais:
+ FilePathField.allow_files
+ - Default é True. Especifica se arquivos numa localização específica devem ser incluídos. Ou este ou allow_folders
+ deve ser True.
+
+ FilePathField.allow_folders
+ - Default é False. Especifica se pastas em uma localização específica devem ser incluídas. Ou este ou allow_files
+ deve ser True.
+
+ Os dois podem ser usados juntos.
+
+ A única pegadinha é que match é aplicado em base filename, mas não no caminho completo.
+ Ex:
+ FilePathField(path="/home/images", match="foo.*", recursive=True)
+ Vai combinar com /home/images/foo.png mas não com /home/images/foo/bar.png, porque match é aplicado na base
+ filename.
+
+ Instâncias de FilePathField são criadas na base de dados como colunas varchar com o default max length de 100
+ caracteres. Como em outros fields, pode aumentar o tamanho usando o argumento max_length.
+
+
+o) FloatField
+class FloatField(**options)
+Um número ponto flutuante representado em Python por uma instância float.
+O default form widget é um NumberInput quando localize é False ou TextInput.
+
+FloatField vs. Decimal Field
+A classe FloatField as vezes é misturada com a classe DecimalField. Os dois representam números reais, representando
+ esses números de formas diferentes. Floatfield usa o tipo float do Python internamente, enquanto DecimalField
+ usa o tipo Decimal.
+A diferença entre os dois, no Python, esta na documentação:
+https://docs.python.org/3/library/decimal.html#module-decimal
+
+
+p) ImageField
+class ImageField(upload_to=None, height_field=None, width_field=None, max_length=100, **options)
+herda os atributos e métodos de FileField, mas também valida se o objeto carregado é uma imagem válida.
+Além dos atributos de FileField, ImageField tem height e width.
+
+Argumentos opcionais:
+
+ImageField.height_field
+Nome de um model field que será auto-populado com a altura da imagem cada vez que o model instance é salvo.
+
+ImageField.width_field
+Nome de um model field que será auto-populado com a largura de uma imagem cada vez que o model instance é salvo.
+
+Requer a biblioteca Pillow.
+
+Instâncias ImageField são criadas na database como colunas varchar com um default max length de 100 caracteres, que
+pode mudar usando esse argumento.
+
+O default form widget é ClearableFileInput.
+
+
+q) IntegerField
+Inteiro. Valores de -2147483648 a 2147483647 são salvos em todas databases suportadas pelo django.
+O default form widget é um NumberInput quando localize é False ou TextInput.
+
+
+r) GenericIPAddressField
+class GenericIPAddressField(protocol='both', unpack_ipv4=False, **options)
+Para validar e armazenar IPs IPV4 e IPV6.
+Ler a documentação:
+https://docs.djangoproject.com/en/1.10/ref/models/fields/#genericipaddressfield
+
+
+s) NullBooleanField
+class NullBooleanField(**options)
+Igual ao BooleanField, mas permite NULL como uma das opções.
+Use este ao invés de BooleanField com null=True.
+O default form widget é nullBooleanSelect.
+
+
+t) PositiveIntegerField
+class PositiveIntegerField(**options)
+Igual ao IntegerField mas deve ser positivo ou 0.
+Valores de 0 a 2147483647 são salvos em todas as databases suportadas pelo Django.
+
+
+u) PositiveSmallIntegerField
+class PositiveSmallIntegerField(**options)
+Igual ao PositiveIntegerField, mas só permite valores até certo ponto.
+Valores de 0 a 32767 são salvos em todas as databases suportadas pelo Django.
+
+
+v) SlugField
+class SlugField(max_length=50, **options)
+Slug é um termo newspapper; é um pequeno label para algo, contendo apenas letras, números, underscores ou hifens.
+Geralmente usado em URLs.
+Como em CharField, pode especificar max_length, se não é especificado, o django usa 50.
+Implica definir Field.db_index=True.
+Muitas vezes é útil para preencher automaticamente um SlugField com base no valor de algum outro valor. Você pode fazer
+isso automaticamente no admin usando prepopulated_fields.
+https://docs.djangoproject.com/en/1.10/ref/contrib/admin/#django.contrib.admin.ModelAdmin.prepopulated_fields
+
+SlugField.allow_unicode
+New in Django 1.9.
+Se True, o field aceita letras Unicode in adição a letras ASCII. Default é False.
+
+
+w) SmallIntegerField
+class SmallIntegerField(**options)
+Igual Integer Field, mas só aceita valores até certo ponto.
+Valores entre -32768 a 32767 são salvos em todas as databases suportadas pelo Django.
+
+
+x) TextField
+class TextField(**options)
+Um grande text field.
+O default form widget é Textarea.
+Se você especifica um atributo max_length, ele vai refletir na Textarea widget do auto-generated form field.
+No entanto, isto não é enforçado no model ou no nível de database. Use um CharField para isso.
+
+Obs: existem alguns detalhes para usar no MySQL.
+Nesse caso, ler a documentação:
+https://docs.djangoproject.com/en/1.10/ref/models/fields/#textfield
+
+
+y) TimeField
+class TimeField(auto_now=False, auto_now_add=False, **options)
+Um time, representado no Python pela instância datetime.time. Aceita as mesmas opções de auto-população do DateField.
+O default form widget é TextInput. O admin adds algum Javascript shortcuts.
+
+
+z) URLField
+class URLField(max_length=200, **options)
+Um CharField para uma URL.
+O default form widget é TextInput.
+Também tem a opção d eusar o argumento max_length, o padrão mesmo quando não especificado é de 200.
+
+
+aa) UUIDField
+class UUIDField(**options)
+Field para armazenar universally unique identifiers. Usa classe Python UUID. Quando usado no PostgreSQL, ele
+armazena um datatype uuid, senão em um char(32).
+
+UUID são uma boa alternativa para AutoField para primary_key.
+A database não vai gerar o UUID pra você, é recomendado usar um default:
+
+import uuid
+from django.db import models
+
+class MyUUIDModel(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # other fields
+
+Reparar que o callable (com os parênteses omitidos) é passado para default, não numa instance de UUID.

@@ -1,0 +1,20 @@
+Query_sets
+
+Abrir o console interativo do django
+(venv) $ python manage.py shell
+
+Importar a classe Snippet em models para manipular objetos no banco de dados.
+
+>>> from snippets.models import Snippet
+>>> Snippet.objects.all()
+[<Snippet: Snippet object>, <Snippet: Snippet object>, <Snippet: Snippet object>]
+
+>>> Snippet.objects.create(title='testeshell', code='bar="Hello, World!"\n')
+<Snippet: Snippet object>
+
+>>> snippet = Snippet.objects.get(id=4)
+>>> snippet.title
+'testeshell'
+
+>>> Snippet.objects.filter(code__contains='bar')
+[<Snippet: Snippet object>, <Snippet: Snippet object>]
