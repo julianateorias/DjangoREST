@@ -27,7 +27,7 @@ INSTALLED_APPS = (
 
 
 Criando um modelo:
-Code Snippets: algo como "retalhos de código", são pedaços pde código pré-fabricados e parametrizáveis que podemos
+Code Snippets: algo como "retalhos de código", são pedaços de código pré-fabricados e parametrizáveis que podemos
 inserir em nossa aplicação.
 Para o fim deste tutorial, vamos começar criando um simples modelo Snippet para armazenarmos code snippets.
 
@@ -125,7 +125,6 @@ $ python manage.py shell
 >>> from snippets.serializers import SnippetSerializer
 >>> serializer = SnippetSerializer()
 >>> print(repr(serializer))
-
 SnippetSerializer():
     id = IntegerField(label='ID', read_only=True)
     title = CharField(allow_blank=True, max_length=100, required=False)
@@ -246,17 +245,8 @@ X-Frame-Options: SAMEORIGIN
     "title": ""
 }
 
+A ideia do tutorial é exibir esse mesmo json exibindo ao visitar essas URLs via web browser.
+Por enquanto, apenas servimos json responses. Também temos alguns erros de casos de manipulação de bordas que ainda
+temos que limpar.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+Começaremos a melhorar as coisas na parte 2 do tutorial.

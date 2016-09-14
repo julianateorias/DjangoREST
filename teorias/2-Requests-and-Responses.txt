@@ -1,0 +1,312 @@
+Tutoria 2: Requests and Responses.
+
+Começaremos a cobrir o núcleo do REST framework.
+
+Request objects:
+REST framework introduz um objeto Request que extende o HttpRequest regular (habitual), e fornece flexíveis request
+parsing. A principal funcionalidade do objeto Request é o atributo request.data, similar ao request.POST, porém mais
+útil para trabalhar com Web APIs.
+
+request.POST  # Only handles form data.  Only works for 'POST' method.
+request.data  # Handles arbitrary data.  Works for 'POST', 'PUT' and 'PATCH' methods.
+
+
+Response objects:
+REST framework também introduz um objeto Response, tipo de "TemplateResponse" que pega conteúdo não-renderizado e
+usa negociação de conteúdo para determinar o tipo de conteúdo correto para retornar ao cliente.
+
+return Response(data)  # Renders to content type as requested by the client.
+
+
+Status Code:
+Usar HTTP status numéricos na view nem sempre é uma leitura óbvia, e é fácil não perceber se você tem um código de
+erro errado. REST framework fornece identificadores mais explícitos para cada status code, como HTTP_400_BAD_REQUEST
+no módulo status.
+
+
+Wrapping API views:
+Obs: Wrapper (empacotador) pode se referir a uma função que tem por objetivo chamar outra função, com um pequeno ou com
+nenhum código adicional.
+REST framework fornece 2 wrappers usados para escrever API views.
+
+1. O decorator @api_view para trabalhar com function based views.
+2. A classe APIView para trabalhar com class-based views.
+
+Esses wrapers fornecem funcionalidades como ter certeza do recebimento de instâncias Request em sua view, e adicionando
+contexto para objetos Response de modo que a negociação de conteúdo possa ser realizada.
+Também fornecem comportamentos como o retorno do response 405 Method Not Allowed quando apropriado, e manipula
+qualquer exceção ParseError que ocorra quando acessarem request.data com input malformatado.
+
+
+
+Pulling it all together:
+Juntando tudo...
+Começar a usar esses componentes para escrever algumas views.
+Não usaremos a classe JSONResponse que criamos na views.py.
+Ao invés de usarmos JSONResponse para retornar, usaremos o Response do REST framework.
+Refatorar la na view, começaremos levemente.
+
+Editar snippets/views.py
+
+Nossa view está mais concisa e o código se parece mais como se estivéssemos trabalhando com Forms API.
+Também estamos usando status code, que deixa o response mais óbvio.
+
+Não é muito diferente do que trabalhar com Django regular views.
+Notar que não estamos explicitamente amarrando nossos requests ou responses a um informado content type.
+
+request.data pode manipular entrada de requests json, mas também pode manipular outros formatos.
+Similarmente nós retornamos objetos response com data, mas permitindo ao REST framework renderizar
+o response no correto content type para nós.
+
+
+Adding optional format suffixes to our URLs:
+Para tirar vantagem do fato que nossos responses não são ligados a apenas um content type, vamos adicionar suporte
+para format suffixes (formato sufixos) para nossos endpoints da API. Usar format suffixes nos dá URLs que
+explicitamente referem-se a um formato determinado, e significa que nossa API vai estar hábil para manipular
+URLs como http://example.com/api/items/4.json
+
+Editar views.py:
+- Adicionar a keyword "format" no argumento das duas def:
+def snippet_list(request, format=None):
+def snippet_detail(request, pk, format=None):
+
+Editar urls.py
+- Adicionar format_suffix_patterns
+
+Essa adição, apesar de não ser necessária, nos dá um simples e limpo jeito de referir a um formato específico.
+
+Testar a API via comando, igual no tutoria 1.
+Parece que está similar, porém nós temos algumas manipulações de erros agradáveis se enviarmos requests inválidos.
+
+Obs: se não funcionar de primeira, testar o modelo, depois o serializer.
+
+Ativar a venv3 e testar a web API:
+
+$ python manage.py runserver
+
+Em outro terminal, ativar a venv3:
+
+$ http http://127.0.0.1:8000/snippets/
+
+HTTP/1.0 200 OK
+Allow: GET, OPTIONS, POST
+Content-Type: application/json
+Date: Tue, 30 Aug 2016 14:02:58 GMT
+Server: WSGIServer/0.2 CPython/3.4.3+
+Vary: Accept, Cookie
+X-Frame-Options: SAMEORIGIN
+
+[
+    {
+        "code": "foo = \"bar\"\n",
+        "id": 1,
+        "language": "python",
+        "linenos": false,
+        "style": "friendly",
+        "title": ""
+    },
+    {
+        "code": "print \"hello, world\"\n",
+        "id": 2,
+        "language": "python",
+        "linenos": false,
+        "style": "friendly",
+        "title": ""
+    },
+    {
+        "code": "print \"hello, world\"",
+        "id": 3,
+        "language": "python",
+        "linenos": false,
+        "style": "friendly",
+        "title": ""
+    },
+    {
+        "code": "bar=\"Hello, World!\"\n",
+        "id": 4,
+        "language": "python",
+        "linenos": false,
+        "style": "friendly",
+        "title": "testeshell"
+    }
+]
+
+$ http http://127.0.0.1:8000/snippets/4/
+
+
+HTTP/1.0 200 OK
+Allow: PUT, GET, DELETE, OPTIONS
+Content-Type: application/json
+Date: Tue, 30 Aug 2016 14:20:30 GMT
+Server: WSGIServer/0.2 CPython/3.4.3+
+Vary: Accept, Cookie
+X-Frame-Options: SAMEORIGIN
+
+{
+    "code": "bar=\"Hello, World!\"\n",
+    "id": 4,
+    "language": "python",
+    "linenos": false,
+    "style": "friendly",
+    "title": "testeshell"
+}
+
+Até aqui, nada de diferente.
+
+
+
+Podemos controlar o formato do response que teremos de retorno, usando o header "Accept":
+
+$ http http://127.0.0.1:8000/snippets/ Accept:application/json  # Request JSON
+
+$ http http://127.0.0.1:8000/snippets/ Accept:text/html          # Request HTML
+
+(o primeiro retorna um json e o segundo um html)
+
+
+Ou anexando um format suffix:
+
+$ http http://127.0.0.1:8000/snippets.json   # JSON suffix
+
+$ http http://127.0.0.1:8000/snippets.api    # Browsable API suffix
+
+(o primeiro retorna um json e o segundo um html)
+
+
+Podemos contolar o formato do request que estamos enviando, usando o header "Content-Type":
+
+# POST using form data
+$ http --form POST http://127.0.0.1:8000/snippets/ code="print 123"
+
+Obs: como usamos o request POST e passamos code="print 123", ele criou um novo (nos dois casos abaixo).
+
+HTTP/1.0 201 CREATED
+Allow: GET, OPTIONS, POST
+Content-Type: application/json
+Date: Tue, 30 Aug 2016 14:58:43 GMT
+Server: WSGIServer/0.2 CPython/3.4.3+
+Vary: Accept, Cookie
+X-Frame-Options: SAMEORIGIN
+
+{
+    "code": "print 123",
+    "id": 5,
+    "language": "python",
+    "linenos": false,
+    "style": "friendly",
+    "title": ""
+}
+
+# POST using JSON
+http --json POST http://127.0.0.1:8000/snippets/ code="print 456"
+
+HTTP/1.0 201 CREATED
+Allow: GET, OPTIONS, POST
+Content-Type: application/json
+Date: Tue, 30 Aug 2016 15:00:09 GMT
+Server: WSGIServer/0.2 CPython/3.4.3+
+Vary: Accept, Cookie
+X-Frame-Options: SAMEORIGIN
+
+{
+    "code": "print 456",
+    "id": 6,
+    "language": "python",
+    "linenos": false,
+    "style": "friendly",
+    "title": ""
+}
+
+
+Se adicionar --debug no http requests acima, você está hábil para ver o request type no request headers:
+
+$ http --json --debug POST http://127.0.0.1:8000/snippets/ code="print 098"
+
+HTTPie 0.9.6
+Requests 2.11.1
+Pygments 2.1.3
+Python 3.4.3+ (default, Oct 14 2015, 16:03:50)
+[GCC 5.2.1 20151010]
+/home/jsrocha/Documents/django/djangorest/venv3/bin/python3.4
+Linux 4.2.0-35-generic
+
+<Environment {
+    "colors": 256,
+    "config": {
+        "__meta__": {
+            "about": "HTTPie configuration file",
+            "help": "https://github.com/jkbrzt/httpie#config",
+            "httpie": "0.9.6"
+        },
+        "default_options": "[]"
+    },
+    "config_dir": "/home/jsrocha/.httpie",
+    "is_windows": false,
+    "stderr": "<_io.TextIOWrapper name='<stderr>' mode='w' encoding='UTF-8'>",
+    "stderr_isatty": true,
+    "stdin": "<_io.TextIOWrapper name='<stdin>' mode='r' encoding='UTF-8'>",
+    "stdin_encoding": "UTF-8",
+    "stdin_isatty": true,
+    "stdout": "<_io.TextIOWrapper name='<stdout>' mode='w' encoding='UTF-8'>",
+    "stdout_encoding": "UTF-8",
+    "stdout_isatty": true
+}>
+
+>>> requests.request(**{
+    "allow_redirects": false,
+    "auth": "None",
+    "cert": "None",
+    "data": "{\"code\": \"print 098\"}",
+    "files": {},
+    "headers": {
+        "Accept": "application/json, */*",
+        "Content-Type": "application/json",
+        "User-Agent": "HTTPie/0.9.6"
+    },
+    "method": "post",
+    "params": {},
+    "proxies": {},
+    "stream": true,
+    "timeout": 30,
+    "url": "http://127.0.0.1:8000/snippets/",
+    "verify": true
+})
+
+HTTP/1.0 201 CREATED
+Allow: GET, OPTIONS, POST
+Content-Type: application/json
+Date: Tue, 30 Aug 2016 16:50:44 GMT
+Server: WSGIServer/0.2 CPython/3.4.3+
+Vary: Accept, Cookie
+X-Frame-Options: SAMEORIGIN
+
+{
+    "code": "print 098",
+    "id": 7,
+    "language": "python",
+    "linenos": false,
+    "style": "friendly",
+    "title": ""
+}
+
+Abrir a API no navegador, visitando:
+http://127.0.0.1:8000/snippets/
+http://127.0.0.1:8000/snippets/2/
+http://127.0.0.1:8000/snippets/2/?format=json
+
+
+Browsability
+Como a API escolheu o content type do response baseado no client request, ela vai, por default, retornar uma
+representação formatada HTML do recurso quando este recurso for requerido por um web browser.
+Isso permite a API retornar uma representação totalmente web-navegável HTML.
+
+Tendo uma API web-navegável é uma grande vitória de usabilidade, e faz o desenvolvimento e utilização
+da API mais facilmente.
+Ele também reduz drasticamente a barreira de entrada para outros desenvolvedores que querem inspecionar e
+trabalhar na sua API.
+
+Ver o tópico browseable api para mais informações sobre o browsable API e como customizá-lo:
+http://www.django-rest-framework.org/topics/browsable-api/
+
+Na parte 3 do tutorial começaremos a usar views baseada em classes e ver como views genéricas reduzem a quantidade
+de código que precisamos escrever.

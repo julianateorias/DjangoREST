@@ -14,11 +14,14 @@ class Snippet(models.Model):
     language = models.CharField(choices=LANGUAGE_CHOICES, default='python', max_length=100)
     style = models.CharField(choices=STYLE_CHOICES, default='friendly', max_length=100)
 
-    # quando executamos uma query no shell, ao inves de retornar um objeto Snippet,
-    # retorna apenas o titulo.
+    # quando executamos uma query no shell, ao inves de retornar o objeto Snippet,
+    # retorna o atributo titulo.
     # def __str__(self):
     #     return self.title
 
     class Meta:
         ordering = ('created', )
+
+# Obs: models.Model significa que Snippet é um modelo do Django, então o Django sabe que deve ser salvo
+# no banco de dados.
 

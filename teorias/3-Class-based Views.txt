@@ -1,0 +1,63 @@
+Tutorial 3: Class-based Views
+(Views baseadas em classes)
+
+Podemos escrever nossa API views usando class-based views, ao invés de function based views
+(que estávamos usando até agora).
+Iremos ver esse padrão poderoso que nos permite reusar funcionalidades comuns, além de nos ajudar
+a manter nosso código DRY.
+
+
+Rewriting our API using class-based views
+Começaremos reescrevendo a view raiz como uma class-based view. Tudo isso envolve um pouco de
+refatoração de views.py.
+
+Editar views.py
+(Mudar o def snippet_list para classe SnippetList)
+
+Parece muito semelhante ao caso anterior, mas temos uma melhor separação entre os diferentes
+métodos HTTP (get e post).
+
+Fazer a mesma coisa na nossa instance view (snippet_details)
+
+Refatorar nosso urls.py agora que estamos usando views baseadas em classe.
+
+Editar urls.py
+
+Rodar para ver se está funcionando como estava antes.
+
+
+Using mixins
+Um dos grandes ganhos usando class-based views é que ele permite compor facilmente pedaços reutilizáveis
+de comportamento.
+As operações create/retrieve/update/delete que estamos usando vão ser muito semelhantes para qualquer
+model-backed API views que nós criamos.
+Estes pedaços de comportamento comum são implementados nas classes mixin no REST framework.
+
+Vamos olhar como podemos compor as views usando as classes mixin.
+
+Editar views.py
+Snippet List
+Estamos construindo a nossa view usando GenericAPIView e adicionando ListModelMixin e CreateModelMixin.
+A classe base fornece a funcionalidade principal, e as classes mixin fornece as ações .list() e .create().
+Estamos então explicitamente amarrando os métodos get e post para as ações apropriadas.
+
+Editar views.py
+Snippet Detail
+Similar ao Snippet List, usando classe GenericAPIView para fornecer a funcionalidade principal, e adicionando
+mixins para fornecer ações .retrieve(), .update() e .detroy().
+
+
+Using generic class-based views
+Usando as classes mixin reescrevemos as views para usar ligeiramente menos código do que antes, mas
+podemos ir um passo além. REST framework fornece um conjunto views genéricas mixed-in já prontas
+que podemos usar to trim down (aparar para baixo) nosso módulo views.py cada vez mais.
+
+Editar views.py
+Snippet List
+Snippet Detail
+
+
+
+
+
+
